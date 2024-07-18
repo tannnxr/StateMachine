@@ -1,6 +1,7 @@
 -- Some Constants for Function
 local StarterPlayer = game:GetService("StarterPlayer")
 local utils = require(script.Utils)
+local signal = require(script.goodSignal) --require the "good signal" module that we previously created (goodSignal.lua)
 
 local StateMachine = {}
 StateMachine.__index = StateMachine
@@ -9,8 +10,8 @@ function StateMachine.newState(states)
 	local newStateMachine = {}
 	setmetatable(newStateMachine, StateMachine)
 	
-	newStateMachine.stateChanged = Instance.new("BindableEvent")
-	newStateMachine.error = Instance.new("BindableEvent")
+	newStateMachine.stateChanged = signal.new() --replacing instances with signal class; works the same, more optimazed
+	newStateMachine.error = signal.new() --replacing instances with signal class; works the same, more optimazed
 
 	newStateMachine.stateables = states
 	newStateMachine.state = Instance.new("StringValue")
