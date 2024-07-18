@@ -1,41 +1,74 @@
--- Some Constants for Function
-local StarterPlayer = game:GetService("StarterPlayer")
-local utils = require(script.Utils)
-local signal = require(script.goodSignal) --require the "good signal" module that we previously created (goodSignal.lua)
+local signal = require(script.Parent.GoodSignal)
+local stateMachine = {}
+stateMachine.__index = stateMachine
 
-local StateMachine = {}
-StateMachine.__index = StateMachine
+local stateObject = {}
+stateObject.__index = stateObject
 
-function StateMachine.newState(states)
-	local newStateMachine = {}
-	setmetatable(newStateMachine, StateMachine)
-	
-	newStateMachine.stateChanged = signal.new() --replacing instances with signal class; works the same, more optimazed
-	newStateMachine.error = signal.new() --replacing instances with signal class; works the same, more optimazed
+export type State = {name: string, master:{}, branches:Branch}
+export type Branch = {[string]: {string} | {}}
 
-	newStateMachine.stateables = states
-	newStateMachine.state = Instance.new("StringValue")
-	newStateMachine.state.Value = newStateMachine.stateables[1]
-	
-	return newStateMachine
-end
-
-function StateMachine:setState(stateToChange: string)
-	if stateToChange == self.state.Value then
-		return warn(`State is already set as {self.state.Value}`)
+function stateMachine.New(states)
+	local self = setmetatable({
+		states ={} :: {State},
+		current=nil,
+		StateChanged=signal.new(),
+	}, stateMachine)
+	for _, v in ipairs(states) do
+		self:NewState(v[1], v[2])
 	end
+	return self
+end
 
-	if utils.tableContains(self.stateables, stateToChange) ~= true then
-		self.error:Fire(`Tried to set state to a non-state value {stateToChange} not in \{{table.concat(self.stateables, ", ")}\} State Change Failed`)
-		return
+function stateMachine:NewState(name, branches)
+	local newSelf = setmetatable({name=name, master=self, branches=branches or {}} :: State, stateObject)
+	self.states[name] = newSelf
+
+	return newSelf
+end
+
+function stateObject:PushBranch(...)
+	for _, v in ipairs({...}) do
+		self.branches[v] = true
 	end
-	local lastState = self.state.Value
-	self.state.Value = stateToChange
-	self.stateChanged:Fire(lastState, stateToChange)
 end
 
-function StateMachine:getCurrentState()
-	return self.state.Value
+function stateObject:PullBranch(...)
+	for _, v in ipairs({...}) do
+		self.branches[v] = false
+	end
 end
 
-return StateMachine
+function stateObject:CanBranch(target)
+	return self.branches[target]
+end
+
+function stateMachine:Next(target)
+	if (self.current) then
+		if (not table.find(self.current.branches, target)) then
+			return
+		end
+	end
+	local lastState = self.current
+	self.current = self.states[target]
+	self.StateChanged:Fire(lastState, self.current)
+end
+
+function stateMachine:Get(state)
+	return self.states[state]
+end
+
+function stateObject:Destroy()
+	self.master.states[self.name] = nil
+	setmetatable(self, nil)
+end
+
+function stateMachine:Destroy()
+	for _, v in (self.master.states) do
+		v:Destroy()
+	end
+	self.StateChanged:DisconnectAll()
+	setmetatable(self, nil)
+end
+
+return stateMachine
